@@ -1,0 +1,53 @@
+{
+  "name": "anynot",
+  "version": "0.1.0",
+  "description": "Knip-like CLI that finds TypeScript explicit :any usages and suggests provable replacement types",
+  "type": "module",
+  "bin": {
+    "anynot": "./dist/cli.js"
+  },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "lint": "biome check .",
+    "lint:fix": "biome check --write .",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "prepublishOnly": "npm run build"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "peerDependencies": {
+    "typescript": ">=5.0.0"
+  },
+  "dependencies": {
+    "cac": "6.7.14",
+    "typescript": "5.9.3"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "2.6.9",
+    "@types/node": "22.13.10",
+    "typescript": "5.9.3",
+    "vitest": "^3.0.9"
+  },
+  "keywords": [
+    "typescript",
+    "any",
+    "linter",
+    "cli",
+    "type-safety"
+  ],
+  "license": "MIT"
+}
