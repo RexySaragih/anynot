@@ -1,8 +1,14 @@
+<div align="center">
+
+<img src="brand/logo/anynot-lockup.svg" alt="anynot" width="520" />
+
 # anynot
 
 CLI that finds TypeScript `any` usages and suggests provable replacement types (with confidence and evidence). Optional `--fix` applies only high-confidence, assignable replacements.
 
 Requires Node.js 18+ and TypeScript 5+ (peer dependency; also bundled so `npx anynot` works without a local TypeScript install).
+
+</div>
 
 ## Install
 
@@ -27,11 +33,52 @@ npx anynot --baseline .anynot-baseline.json --update-baseline
 npx anynot --reporter sarif
 npx anynot --reporter sarif --out anynot.sarif
 npx anynot --reporter github
+npx anynot --config ./config/anynot.ci.json
 ```
 
 Optional `[cwd]` positional argument: analyze a directory other than the process working directory. `--fix` and `--update-baseline` only write files under that analysis cwd (paths that escape it are skipped).
 
 Progress and status messages go to **stderr** (spinner in a TTY; plain `anynot: …` lines in CI). Report bodies go to **stdout**, or to a file when `--out` is set.
+
+## Project config (optional)
+
+Check in an `anynot.json` (or `anynot.jsonc` / `.anynot.json` / `package.json#anynot`) so CI and local runs share the same include/ignore defaults. CLI flags always win when passed. `--fix`, `--dry-run`, and `--update-baseline` stay CLI-only.
+
+Discovery under the analysis cwd (first match wins), then merge:
+
+```mermaid
+flowchart TD
+  start[Analysis cwd] --> explicit{"--config?"}
+  explicit -->|yes| file[That config file]
+  explicit -->|no| discover{"anynot.json / jsonc / dotfile / package.json?"}
+  discover -->|"first match"| file
+  discover -->|none| defaultsOnly[Defaults only]
+  defaultsOnly --> defaults
+  file --> defaults
+  subgraph precedence [Precedence]
+    defaults[Built-in defaults] --> fileCfg[File config]
+    fileCfg --> cliWins["CLI flags win when passed"]
+  end
+```
+
+```json
+{
+  "$schema": "https://unpkg.com/anynot@0.1.0/schema.json",
+  "include": ["src/**/*.ts"],
+  "ignore": [
+    "src/**/migrations/**",
+    "scripts/**"
+  ],
+  "tsconfig": "tsconfig.json",
+  "includeImplicit": false,
+  "baseline": ".anynot-baseline.json",
+  "ignoreKinds": ["jsdoc"],
+  "reporter": "sarif",
+  "out": "anynot.sarif"
+}
+```
+
+`ignore` is the Knip-familiar name for exclude globs (not Knip `ignoreDependencies`). `exclude` is an accepted alias; both are concatenated uniquely into one exclude list. Arrays from the CLI **replace** config when the flag is passed. Invalid or missing `--config` / invalid auto-discovered config → exit `2`.
 
 ## Exit codes
 
@@ -100,6 +147,7 @@ const z: any = 3; // anynot-ignore a1b2c3d4e5f6
 | `--include <glob>`   | Include glob (comma-separated or repeatable)                             |
 | `--exclude <glob>`   | Exclude glob (comma-separated or repeatable)                             |
 | `--include-implicit` | Also report implicit any from TypeScript diagnostics                     |
+| `--config <path>`    | Explicit path to `anynot.json` / `.jsonc` (overrides discovery)          |
 
 ## Reports
 

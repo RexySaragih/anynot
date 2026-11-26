@@ -1,0 +1,6 @@
+{
+  "$schema": "https://unpkg.com/anynot@0.1.0/schema.json",
+  "include": ["src/**/*.ts"],
+  "ignore": ["ignored/**"],
+  "json": true
+}

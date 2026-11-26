@@ -17,6 +17,7 @@ Guidance for AI coding agents working in this repo. Prefer reading this and `ARC
 | Goal                                                | Touch                                                       |
 | --------------------------------------------------- | ----------------------------------------------------------- |
 | New CLI flag / exit behavior                        | `cli.ts` (+ test via `runAnynot`)                           |
+| Project config discovery / schema / merge           | `config.ts`, `schema.json`, merge in `cli.ts`               |
 | Progress / spinner / stderr status                  | `progress.ts` (+ hooks from `analyze` / `cli`)              |
 | Detection of `any` / kinds / JSDoc / implicit codes | `findAny.ts`, `ignore.ts`                                   |
 | Suggestion quality / confidence / dual safe         | `inferType.ts`, constants in `types.ts`                     |
@@ -29,7 +30,23 @@ Guidance for AI coding agents working in this repo. Prefer reading this and `ARC
 | Shared types                                        | `types.ts` then update exporters in `index.ts`              |
 | Program / tsconfig loading                          | `loadProgram.ts`                                            |
 
-Do not add new top-level `.md` files unless the user asks. Do not add dependencies without a clear need (globs are intentionally hand-rolled).
+Module data flow (see `ARCHITECTURE.md` for detail):
+
+```mermaid
+flowchart LR
+  cli[cli.ts] --> config[config.ts]
+  cli --> analyze[analyze.ts]
+  analyze --> loadProgram[loadProgram.ts]
+  analyze --> findAny[findAny.ts]
+  analyze --> inferType[inferType.ts]
+  analyze --> coverage[coverage.ts]
+  cli --> fix[fix.ts]
+  cli --> baseline[baseline.ts]
+  cli --> report[report.ts]
+  cli --> reporters[reporters]
+```
+
+Do not add new top-level `.md` files unless the user asks. Do not add dependencies without a clear need (globs are intentionally hand-rolled). Keep `schema.json` in package `files` when the config shape changes.
 
 ## Conventions
 
@@ -90,7 +107,8 @@ Run: `npm test`. Build: `npm run build`.
 
 ## Don’t
 
-- Invent CLI flags, config file formats, or reporters that are not requested
+- Invent CLI flags, config fields, or reporters that are not requested
+- Put `--fix` / `--dry-run` / `--update-baseline` into project config (stay CLI-only)
 - Auto-fix implicit any or medium/low confidence suggestions
 - Suggest or write `any` as a replacement type
 - Add heavy deps (minimatch, commander, etc.) without strong justification

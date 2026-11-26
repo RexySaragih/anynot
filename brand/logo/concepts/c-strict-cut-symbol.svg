@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256" role="img" aria-labelledby="title">
+  <title id="title">anynot concept C Not-ring</title>
+  <!-- Precise prohibition geometry: ring + 45° bar = "not any", built for 16px -->
+  <g id="symbol" fill="#111111" fill-rule="evenodd">
+    <path d="
+      M 128 28
+      A 100 100 0 1 1 127.9 28
+      Z
+      M 128 60
+      A 68 68 0 1 0 128.1 60
+      Z
+    "/>
+    <path d="
+      M 74 166
+      L 166 74
+      L 182 90
+      L 90 182
+      Z
+    "/>
+  </g>
+</svg>

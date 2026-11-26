@@ -1,0 +1,5 @@
+{
+  // exclude scripts-style paths
+  "ignore": ["noise.ts"],
+  "json": true
+}

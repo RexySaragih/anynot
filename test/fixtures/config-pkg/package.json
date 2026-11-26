@@ -1,0 +1,8 @@
+{
+  "name": "anynot-config-pkg-fixture",
+  "private": true,
+  "anynot": {
+    "include": ["only.ts"],
+    "ignoreKinds": ["assertion"]
+  }
+}

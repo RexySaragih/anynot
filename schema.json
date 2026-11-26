@@ -1,0 +1,71 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://unpkg.com/anynot@0.1.0/schema.json",
+  "title": "anynot project config",
+  "description": "Optional project defaults for anynot (CLI flags override when passed).",
+  "type": "object",
+  "additionalProperties": true,
+  "properties": {
+    "$schema": {
+      "type": "string",
+      "description": "JSON Schema URL for editor autocomplete."
+    },
+    "include": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Include globs (same as --include)."
+    },
+    "ignore": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Exclude globs (Knip-familiar name; same as --exclude)."
+    },
+    "exclude": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Alias for ignore; merged with ignore into one exclude list."
+    },
+    "tsconfig": {
+      "type": "string",
+      "description": "Path to tsconfig.json (same as --tsconfig)."
+    },
+    "includeImplicit": {
+      "type": "boolean",
+      "description": "Also report implicit any (same as --include-implicit)."
+    },
+    "baseline": {
+      "type": "string",
+      "description": "Baseline file path relative to cwd (same as --baseline)."
+    },
+    "ignoreKinds": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "enum": [
+          "annotation",
+          "parameter",
+          "return",
+          "assertion",
+          "generic",
+          "rest",
+          "implicit",
+          "jsdoc"
+        ]
+      },
+      "description": "Finding kinds to drop after detection (coverage still uses included files)."
+    },
+    "reporter": {
+      "type": "string",
+      "enum": ["sarif", "github"],
+      "description": "Default reporter (same as --reporter)."
+    },
+    "out": {
+      "type": "string",
+      "description": "Default report output path (same as --out)."
+    },
+    "json": {
+      "type": "boolean",
+      "description": "Emit JSON report by default (same as --json)."
+    }
+  }
+}

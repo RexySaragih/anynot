@@ -2,32 +2,39 @@
 
 ## Pipeline
 
-```text
-CLI (cli.ts)
-  → analyze (analyze.ts)
-       → loadPrograms (loadProgram.ts)     // tsconfig + project references
-       → filter files (globs.ts)
-       → findExplicitAny / JSDoc (findAny.ts)
-       → findImplicitAny (optional)
-       → enrichImportedAnyRootCause
-       → computeTypeCoverage (coverage.ts)
-       → attachSuggestions (inferType.ts)  // skip if skipInference
-  → optional --fix / --dry-run (fix.ts)
-  → optional --update-baseline (baseline.ts)
-  → filter new IDs if --baseline
-  → report (report.ts | reporters/*)
-  → exit 1 if findings remain
+```mermaid
+flowchart TD
+  cli[cli.ts] --> loadCfg["loadConfig (config.ts)"]
+  loadCfg --> merge[merge CLI over file]
+  merge --> loadProg
+  subgraph analyzePhase [analyze.ts]
+    loadProg[loadPrograms]
+    globs["filter files (globs.ts)"]
+    detect["findExplicitAny / JSDoc"]
+    implicit["findImplicitAny (optional)"]
+    ignoreKindsFilter["filter ignoreKinds (optional)"]
+    rootCause[enrichImportedAnyRootCause]
+    coverage[computeTypeCoverage]
+    infer["attachSuggestions (inferType.ts)"]
+    loadProg --> globs --> detect --> implicit --> ignoreKindsFilter --> rootCause --> coverage --> infer
+  end
+  infer --> fixOpt["optional --fix / --dry-run"]
+  fixOpt --> baselineOpt["optional --update-baseline"]
+  baselineOpt --> filterIds["filter new IDs if --baseline"]
+  filterIds --> reportNode["report / reporters"]
+  reportNode --> exitCode["exit 1 if findings remain"]
 ```
 
-Library users call `analyze()` (and optionally `applyFixes`) directly via `src/index.ts` exports; CLI is a thin orchestration layer around the same modules.
+Library users call `analyze()` (and optionally `applyFixes`) directly via `src/index.ts` exports; CLI is a thin orchestration layer around the same modules. Conceptual stages: **detect → infer → verify → report → fix/CI**.
 
 ## Key modules
 
 | Module                | Role                                                                                                          |
 | --------------------- | ------------------------------------------------------------------------------------------------------------- |
-| `cli.ts`              | `cac` CLI: flags, fix/baseline orchestration, reporter dispatch, `--out` file write, exit codes              |
+| `cli.ts`              | `cac` CLI: flags, config merge, fix/baseline orchestration, reporter dispatch, `--out` file write, exit codes |
+| `config.ts`           | Discover/parse `anynot.json`(c) / `package.json#anynot`; normalize ignore+exclude; validate; unknown-key warn |
 | `progress.ts`         | stderr phase status / TTY spinner; keeps machine stdout clean                                                 |
-| `analyze.ts`          | Program loop, include/exclude, dedupe/sort findings, wire detect → infer → coverage                           |
+| `analyze.ts`          | Program loop, include/exclude, `ignoreKinds` filter, dedupe/sort findings, wire detect → infer → coverage     |
 | `loadProgram.ts`      | Resolve tsconfig, follow project references, create `ts.Program` + checker                                    |
 | `globs.ts`            | Minimal `*` / `**` / `?` include-exclude matching (no minimatch)                                              |
 | `findAny.ts`          | Walk AST for `AnyKeyword`; JSDoc type tags; classify `AnyKind`; implicit diagnostics; imported-any root cause |
@@ -70,6 +77,15 @@ IDs are stable for baseline/ignore-by-id as long as file path (relative to progr
 
 `attachSuggestions` builds a named-type index from project interfaces/aliases, then per finding:
 
+```mermaid
+flowchart TD
+  resolve[Resolve source file + any node] --> evidence[Try evidence sources]
+  evidence --> named[Prefer named type if match scores well]
+  named --> verify[Verify assignability at use sites]
+  verify --> safe["Set safeSuggestion to unknown when speculative"]
+  safe --> fixable["Set fixable only if high + assignable + non-implicit"]
+```
+
 1. Resolve source file + `any` node
 2. Try evidence sources in priority order (container inner type, initializer, class field assigns, destructuring, return exprs, JSX context, contextual/call-site, array callbacks, usage shape, LS inferFromUsage)
 3. Prefer a named type when structural/assignable match scores well
@@ -104,6 +120,37 @@ IDs are stable for baseline/ignore-by-id as long as file path (relative to progr
 | Exit     | `exitCodeForFindings` | `0` if empty, else `1`                                |
 
 `--reporter` overrides `--json`. `--out <path>` redirects whichever report format was selected to a file (creates parent dirs) and prints `anynot: wrote report to …` on stderr. Coverage is included for human/JSON paths, not SARIF/GitHub bodies.
+
+## Project config
+
+Optional file under analysis cwd. Discovery order (first match wins). No file → CLI/defaults only. Invalid/missing explicit or auto-discovered config → exit `2`.
+
+```mermaid
+flowchart TD
+  start[Analysis cwd] --> explicit{"--config path?"}
+  explicit -->|yes| loadExplicit[Load that file]
+  explicit -->|no| a1{anynot.json?}
+  a1 -->|yes| loadA1[Load anynot.json]
+  a1 -->|no| a2{anynot.jsonc?}
+  a2 -->|yes| loadA2[Load anynot.jsonc]
+  a2 -->|no| a3{".anynot.json / .anynot.jsonc?"}
+  a3 -->|yes| loadA3[Load dotfile]
+  a3 -->|no| pkg{"package.json#anynot?"}
+  pkg -->|yes| loadPkg["Load package.json anynot"]
+  pkg -->|no| empty[Empty config / defaults only]
+  loadExplicit --> defaults
+  loadA1 --> defaults
+  loadA2 --> defaults
+  loadA3 --> defaults
+  loadPkg --> defaults
+  empty --> defaults
+  subgraph precedence [Precedence]
+    defaults[Built-in defaults] --> fileCfg[File config]
+    fileCfg --> cliFlags["CLI flags win when passed"]
+  end
+```
+
+Array flags (`--include`, `--exclude`) **replace** file arrays when passed; scalars/booleans win when the flag is present. `ignore` + `exclude` in the same file concatenate uniquely into `AnalyzeOptions.exclude`. `ignoreKinds` filters findings after detect/implicit (coverage still uses included files). `--fix` / `--dry-run` / `--update-baseline` are CLI-only. JSON Schema: root `schema.json` (published in package `files`).
 
 ## Type coverage
 

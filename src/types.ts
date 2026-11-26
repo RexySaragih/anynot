@@ -60,6 +60,8 @@ export interface AnalyzeOptions {
   include?: string[];
   exclude?: string[];
   includeImplicit?: boolean;
+  /** Finding kinds to drop after detection (coverage still uses included files). */
+  ignoreKinds?: AnyKind[];
   skipInference?: boolean;
   /** Optional status messages during analysis (CLI uses stderr progress). */
   onProgress?: (message: string) => void;

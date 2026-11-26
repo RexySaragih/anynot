@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 256" width="720" height="256" role="img" aria-labelledby="title">
+  <title id="title">anynot concept A lockup exploration</title>
+  <g id="symbol" fill="#111111" fill-rule="evenodd" transform="translate(8,0)">
+    <path d="M108 48A72 72 0 1 1 108 192A72 72 0 1 1 108 48ZM108 92A28 28 0 1 0 108 148A28 28 0 1 0 108 92Z"/>
+    <rect x="156" y="56" width="28" height="144" rx="4"/>
+    <path d="M46 178L178 46L198 66L66 198Z"/>
+  </g>
+  <text x="280" y="168" font-family="Helvetica, Arial, sans-serif" font-size="96" font-weight="700" letter-spacing="-2" fill="#111111">anynot</text>
+</svg>

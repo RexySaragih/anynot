@@ -7,12 +7,13 @@ import { fileURLToPath } from 'node:url';
 import { cac } from 'cac';
 import { analyze } from './analyze.js';
 import { filterNewFindings, loadBaseline, updateBaseline } from './baseline.js';
+import { type AnynotConfig, ConfigError, loadConfig } from './config.js';
 import { applyFixes, formatDryRun, previewFixes } from './fix.js';
 import { createProgress, formatMachineDoneSummary, type ProgressReporter } from './progress.js';
 import { exitCodeForFindings, reportHuman, reportJson } from './report.js';
 import { reportGithub } from './reporters/github.js';
 import { reportSarif } from './reporters/sarif.js';
-import type { Finding, TypeCoverage } from './types.js';
+import type { AnyKind, Finding, TypeCoverage } from './types.js';
 
 const require = createRequire(import.meta.url);
 const { version: VERSION } = require('../package.json') as { version: string };
@@ -31,6 +32,22 @@ interface CliOptions {
   baseline?: string;
   updateBaseline?: boolean;
   reporter?: string;
+  config?: string;
+}
+
+interface EffectiveOptions {
+  include?: string[];
+  exclude?: string[];
+  tsconfig?: string;
+  includeImplicit: boolean;
+  ignoreKinds?: AnyKind[];
+  baseline?: string;
+  reporter?: ReporterName;
+  out?: string;
+  json: boolean;
+  fix: boolean;
+  dryRun: boolean;
+  updateBaseline: boolean;
 }
 
 export function main(argv: string[] = process.argv): number {
@@ -49,6 +66,7 @@ export function main(argv: string[] = process.argv): number {
     .option('--include <glob>', 'Include glob (comma-separated or repeatable)')
     .option('--exclude <glob>', 'Exclude glob (comma-separated or repeatable)')
     .option('--include-implicit', 'Also report implicit any from noImplicitAny')
+    .option('--config <path>', 'Path to anynot.json / anynot.jsonc project config')
     .action((cwd: string | undefined, options: CliOptions) => {
       process.exitCode = runAnynot(cwd ?? process.cwd(), options);
     });
@@ -81,14 +99,28 @@ export function runAnynot(cwd: string, options: CliOptions): number {
 
 function runAnynotBody(cwd: string, options: CliOptions, progress: ProgressReporter): number {
   const resolvedCwd = path.resolve(cwd);
-  const include = normalizeList(options.include);
-  const exclude = normalizeList(options.exclude);
-  const reporter = parseReporter(options.reporter);
-  const baselinePath = options.baseline ? path.resolve(resolvedCwd, options.baseline) : undefined;
-  const outPath = options.out ? path.resolve(resolvedCwd, options.out) : undefined;
-  const machineOutput = !!options.json || !!reporter;
 
-  if (options.updateBaseline && !baselinePath) {
+  let fileConfig: AnynotConfig;
+  try {
+    ({ config: fileConfig } = loadConfig(resolvedCwd, options.config, (message) => {
+      process.stderr.write(`anynot: ${message}\n`);
+    }));
+  } catch (error) {
+    if (error instanceof ConfigError) {
+      progress.fail(error.message);
+      return 2;
+    }
+    throw error;
+  }
+
+  const effective = mergeCliAndConfig(options, fileConfig);
+  const baselinePath = effective.baseline
+    ? path.resolve(resolvedCwd, effective.baseline)
+    : undefined;
+  const outPath = effective.out ? path.resolve(resolvedCwd, effective.out) : undefined;
+  const machineOutput = effective.json || !!effective.reporter;
+
+  if (effective.updateBaseline && !baselinePath) {
     progress.fail('--update-baseline requires --baseline <path>');
     return 2;
   }
@@ -97,19 +129,22 @@ function runAnynotBody(cwd: string, options: CliOptions, progress: ProgressRepor
     progress.phase(message);
   };
 
-  let result = analyze({
+  const analyzeOptions = {
     cwd: resolvedCwd,
-    tsconfig: options.tsconfig,
-    include,
-    exclude,
-    includeImplicit: !!options.includeImplicit,
+    tsconfig: effective.tsconfig,
+    include: effective.include,
+    exclude: effective.exclude,
+    includeImplicit: effective.includeImplicit,
+    ignoreKinds: effective.ignoreKinds,
     onProgress,
-  });
+  };
+
+  let result = analyze(analyzeOptions);
 
   let findings = result.findings;
 
-  if (options.fix) {
-    if (options.dryRun) {
+  if (effective.fix) {
+    if (effective.dryRun) {
       progress.phase('Previewing fixes…');
       const preview = previewFixes(findings, result.programRoot, resolvedCwd);
       progress.done();
@@ -123,19 +158,12 @@ function runAnynotBody(cwd: string, options: CliOptions, progress: ProgressRepor
       );
 
       progress.phase('Re-analyzing after fixes…');
-      result = analyze({
-        cwd: resolvedCwd,
-        tsconfig: options.tsconfig,
-        include,
-        exclude,
-        includeImplicit: !!options.includeImplicit,
-        onProgress,
-      });
+      result = analyze(analyzeOptions);
       findings = result.findings;
     }
   }
 
-  if (options.updateBaseline && baselinePath) {
+  if (effective.updateBaseline && baselinePath) {
     progress.phase('Updating baseline…');
     updateBaseline(baselinePath, findings, resolvedCwd);
     progress.done(
@@ -144,7 +172,7 @@ function runAnynotBody(cwd: string, options: CliOptions, progress: ProgressRepor
     );
   }
 
-  if (baselinePath && !options.updateBaseline) {
+  if (baselinePath && !effective.updateBaseline) {
     progress.phase('Applying baseline…');
   }
 
@@ -156,14 +184,39 @@ function runAnynotBody(cwd: string, options: CliOptions, progress: ProgressRepor
   );
 
   emitReport(reportFindings, {
-    json: !!options.json,
-    reporter,
+    json: effective.json,
+    reporter: effective.reporter,
     coverage: result.coverage,
     outPath,
     cwd: resolvedCwd,
   });
 
   return exitCodeForFindings(reportFindings);
+}
+
+function mergeCliAndConfig(cli: CliOptions, file: AnynotConfig): EffectiveOptions {
+  const include =
+    cli.include !== undefined ? normalizeList(cli.include) : file.include;
+  const exclude =
+    cli.exclude !== undefined ? normalizeList(cli.exclude) : file.exclude;
+
+  const reporterRaw = cli.reporter !== undefined ? cli.reporter : file.reporter;
+
+  return {
+    include,
+    exclude,
+    tsconfig: cli.tsconfig !== undefined ? cli.tsconfig : file.tsconfig,
+    includeImplicit:
+      cli.includeImplicit !== undefined ? !!cli.includeImplicit : !!file.includeImplicit,
+    ignoreKinds: file.ignoreKinds,
+    baseline: cli.baseline !== undefined ? cli.baseline : file.baseline,
+    reporter: parseReporter(reporterRaw),
+    out: cli.out !== undefined ? cli.out : file.out,
+    json: cli.json !== undefined ? !!cli.json : !!file.json,
+    fix: !!cli.fix,
+    dryRun: !!cli.dryRun,
+    updateBaseline: !!cli.updateBaseline,
+  };
 }
 
 function applyBaselineFilter(findings: Finding[], baselinePath: string | undefined): Finding[] {

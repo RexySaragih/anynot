@@ -53,6 +53,7 @@ anynot optimizes for **provable** suggestions over clever guesses. When evidence
 - Progress/status on stderr so analysis does not look hung
 - Ignore: same-line, next-line, and by finding id
 - Include/exclude globs; tsconfig path; project references via `loadPrograms`
+- Optional project config (`anynot.json` / JSONC / `package.json#anynot`) for include/ignore/tsconfig/baseline/reporter defaults; CLI overrides; `ignoreKinds` filter
 - Root-cause hint when exported `any` aliases mirror untyped/any-typed package imports
 
 ## Non-goals (current)
@@ -78,9 +79,20 @@ anynot [cwd]
   --tsconfig <path>
   --include / --exclude  Globs (comma-separated or repeatable)
   --include-implicit     Include implicit any diagnostics
+  --config <path>        Explicit anynot.json / JSONC
 ```
 
-Primary UX loop: **detect → suggest → (optional) fix → report → CI exit**.
+Optional project config sets include / ignore (≡ exclude globs) / tsconfig / baseline / reporter / out / json / ignoreKinds. `--fix`, `--dry-run`, and `--update-baseline` remain CLI-only.
+
+Primary UX loop:
+
+```mermaid
+flowchart LR
+  detect[detect] --> suggest[suggest]
+  suggest --> fix["optional fix"]
+  fix --> report[report]
+  report --> ci[CI exit]
+```
 
 ## Roadmap posture
 
@@ -90,4 +102,4 @@ Near-term posture is **deepen correctness of what exists**, not broaden into a g
 - Clearer reports and CI integrations
 - More stable finding IDs and baseline workflows
 
-Future ideas (not shipped — do not document as features): editor extensions, config file format beyond CLI flags, autofix for implicit any, multi-rule lint framework. Mark any of these as speculative if mentioned in PRs or issues.
+Future ideas (not shipped — do not document as features): editor extensions, autofix for implicit any, multi-rule lint framework. Mark any of these as speculative if mentioned in PRs or issues.

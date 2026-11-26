@@ -78,8 +78,10 @@ function analyzeProgram(
   report?.('Computing type coverage…');
   const coverage = computeTypeCoverage(program, includedFiles);
 
+  const filtered = filterIgnoredKinds(findings, options.ignoreKinds);
+
   const withRootCause = enrichImportedAnyRootCause(
-    findings,
+    filtered,
     program,
     checker,
     sourceFileByPath,
@@ -97,6 +99,17 @@ function analyzeProgram(
     findings: attachSuggestions(withRootCause, program, checker, sourceFileByPath, rootDir),
     coverage,
   };
+}
+
+function filterIgnoredKinds(
+  findings: Finding[],
+  ignoreKinds: AnalyzeOptions['ignoreKinds'],
+): Finding[] {
+  if (!ignoreKinds || ignoreKinds.length === 0) {
+    return findings;
+  }
+  const ignored = new Set(ignoreKinds);
+  return findings.filter((finding) => !ignored.has(finding.kind));
 }
 
 function dedupeFindings(findings: Finding[]): Finding[] {
